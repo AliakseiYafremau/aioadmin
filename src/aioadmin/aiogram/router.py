@@ -3,7 +3,7 @@ from aiogram_dialog import setup_dialogs
 
 from aioadmin.adapter import Adapter
 from aioadmin.aiogram.middleware import AdaperMiddleware
-from aioadmin.aiogram.handlers.menu import menu_window
+from aioadmin.aiogram.handlers.menu import menu_dialog
 
 
 class AdminRouter(Router):
@@ -12,6 +12,6 @@ class AdminRouter(Router):
         self.message.middleware.register(AdaperMiddleware(adapter=adapter))
         self.callback_query.middleware.register(AdaperMiddleware(adapter=adapter))
         self.include_routers(
-            menu_window
+            menu_dialog,
         )
         setup_dialogs(self)

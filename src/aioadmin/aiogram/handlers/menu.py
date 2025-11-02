@@ -4,10 +4,13 @@ from aiogram.types import CallbackQuery
 from aiogram.enums.parse_mode import ParseMode
 from aiogram_dialog import Window, Dialog, DialogManager
 from aiogram_dialog.widgets.text import Const, Format
-from aiogram_dialog.widgets.kbd import Select, SwitchTo
+from aiogram_dialog.widgets.kbd import Select, SwitchTo, Button
 
 from aioadmin.adapter import Adapter
 from aioadmin.aiogram.handlers.states import Menu
+from aioadmin.aiogram.handlers.create import start_create, create_window
+from aioadmin.aiogram.handlers.update import start_update, update_select_record_window, update_select_column_window, update_field_value_window
+from aioadmin.aiogram.handlers.delete import start_delete, delete_window
 
 
 async def set_current_table(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager, item_id: str):
@@ -46,7 +49,8 @@ async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
         "table": rendered_table,
     }
 
-menu_window = Dialog(
+
+menu_dialog = Dialog(
     Window(
         Const("Admin panel ⚙️"),
         Const("Tables: "),
@@ -57,9 +61,17 @@ menu_window = Dialog(
     Window(
         Format('*{name}*'),
         Format("{table}"),
+        Button(Const("Create"), id="create", on_click=start_create),
+        Button(Const("Update"), id="update", on_click=start_update),
+        Button(Const("Delete"), id="delete", on_click=start_delete),
         SwitchTo(Const("Return to menu"), id="table", state=Menu.get_tables),
         getter=get_table,
         state=Menu.get_table,
         parse_mode=ParseMode.MARKDOWN,
     ),
+    create_window,
+    delete_window,
+    update_select_record_window,
+    update_select_column_window,
+    update_field_value_window,
 )
