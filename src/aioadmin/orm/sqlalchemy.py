@@ -1,9 +1,10 @@
+import asyncio
 from collections.abc import Awaitable
 from typing import Any, Callable
 from functools import wraps
 
 from sqlalchemy import select, delete, update, insert, MetaData, Table, Engine
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, AsyncEngine
 
 from aioadmin.record import sqlalchemy_to_record, Record
 from aioadmin.adapter import Adapter
@@ -14,6 +15,7 @@ class SQLAlchemyAdapter(Adapter):
         self.metadata = metadata
         self.engine = engine
         self.session_factory = async_sessionmaker(engine)
+
     
     def _get_session(func: Callable[..., Awaitable[Any]]):
         @wraps(func)

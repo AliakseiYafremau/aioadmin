@@ -10,6 +10,7 @@ class AdminRouter(Router):
     def __init__(self, *, name = None, adapter: Adapter):
         super().__init__(name=name)
         self.message.middleware.register(AdaperMiddleware(adapter=adapter))
+        self.callback_query.middleware.register(AdaperMiddleware(adapter=adapter))
         self.include_routers(
             menu_window
         )

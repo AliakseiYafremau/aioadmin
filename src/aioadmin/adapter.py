@@ -6,7 +6,7 @@ from aioadmin.record import Record
 
 class Adapter(ABC):
     @abstractmethod
-    async def get_tables(self) -> dict[tuple[str]]:
+    def get_tables(self) -> dict[tuple[str]]:
         raise NotImplementedError
 
     @abstractmethod
