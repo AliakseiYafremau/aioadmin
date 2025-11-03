@@ -23,6 +23,7 @@ async def get_tables(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
 async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
     current_table = dialog_manager.dialog_data["current_table"]
     record = await adapter.get_table(current_table)
+
     columns = [str(column) for column in record.columns]
     column_widths = [len(column) for column in columns]
     rendered_rows = []
@@ -34,7 +35,7 @@ async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
         rendered_rows.append(rendered_row)
 
     header_line = " | ".join(column.ljust(column_widths[idx]) for idx, column in enumerate(columns))
-    separator_line = " | ".join("-" * column_widths[idx] for idx in range(len(columns)))
+    separator_line = "---".join("-" * column_widths[idx] for idx in range(len(columns)))
 
     formatted_rows = [
         " | ".join(rendered_row[idx].ljust(column_widths[idx]) for idx in range(len(columns)))
@@ -42,7 +43,7 @@ async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
     ]
 
     table_lines = [header_line, separator_line, *formatted_rows] if columns else []
-    rendered_table = "```\n" + "\n".join(table_lines) + "\n```" if table_lines else ""
+    rendered_table = "```table\n" + "\n".join(table_lines) + "\n```" if table_lines else ""
 
     return {
         "name": record.name.capitalize(),

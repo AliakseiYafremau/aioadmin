@@ -9,6 +9,7 @@ from aiogram_dialog.widgets.input import MessageInput
 
 from aioadmin.adapter import Adapter
 from aioadmin.aiogram.handlers.states import Menu
+from aioadmin.exceptions import TargetAlreadyExistsError
 
 
 async def start_update(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager):
@@ -42,7 +43,11 @@ async def process_update_field_input(message: Message, widget: Any, dialog_manag
         pk_value = record_pk_str
     
     update_data = {column_name: new_value}
-    await adapter.update_record(pk_value, update_data, current_table)
+    try:
+        await adapter.update_record(pk_value, update_data, current_table)
+    except TargetAlreadyExistsError:
+        await message.answer("Record already exists")
+        await dialog_manager.switch_to(Menu.update_field_value)
     
     dialog_manager.dialog_data.pop("update_record_pk", None)
     dialog_manager.dialog_data.pop("update_column", None)

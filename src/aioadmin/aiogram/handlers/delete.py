@@ -7,6 +7,7 @@ from aiogram_dialog.widgets.kbd import Select, SwitchTo, Button, Group
 
 from aioadmin.adapter import Adapter
 from aioadmin.aiogram.handlers.states import Menu
+from aioadmin.exceptions import ForeignKeyConstraintError
 
 
 async def start_delete(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager):
@@ -27,12 +28,17 @@ async def delete_selected_handler(callback: CallbackQuery, widget: Any, dialog_m
     current_table = dialog_manager.dialog_data["current_table"]
     selected = dialog_manager.dialog_data.get("selected_records", set())
     
-    for pk_value_str in selected:
-        try:
-            pk_value = int(pk_value_str)
-        except ValueError:
-            pk_value = pk_value_str
-        await adapter.delete_record(pk_value, current_table)
+    try:
+        for pk_value_str in selected:
+            try:
+                pk_value = int(pk_value_str)
+            except ValueError:
+                pk_value = pk_value_str
+            await adapter.delete_record(pk_value, current_table)
+    except ForeignKeyConstraintError:
+        await callback.message.answer(
+            "Cannot delete: record is referenced by other records."
+        )
     
     dialog_manager.dialog_data["selected_records"] = set()
     await dialog_manager.switch_to(Menu.get_table)

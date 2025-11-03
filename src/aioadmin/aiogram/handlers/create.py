@@ -9,6 +9,7 @@ from aiogram_dialog.widgets.input import MessageInput
 
 from aioadmin.adapter import Adapter
 from aioadmin.aiogram.handlers.states import Menu
+from aioadmin.exceptions import TargetAlreadyExistsError
 
 
 async def start_create(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager):
@@ -41,7 +42,12 @@ async def process_field_input(message: Message, widget: Any, dialog_manager: Dia
         if next_index >= len(columns):
             adapter = dialog_manager.middleware_data["adapter"]
             current_table = dialog_manager.dialog_data["current_table"]
-            await adapter.create_record(create_data, current_table)
+            try:
+                await adapter.create_record(create_data, current_table)
+            except TargetAlreadyExistsError:
+                await message.answer("Record already exists")
+                await dialog_manager.switch_to(Menu.create_record)
+            
             dialog_manager.dialog_data.pop("create_columns", None)
             dialog_manager.dialog_data.pop("create_current_index", None)
             dialog_manager.dialog_data.pop("create_data", None)
@@ -77,4 +83,3 @@ create_window = Window(
     state=Menu.create_record,
     parse_mode=ParseMode.MARKDOWN,
 )
-

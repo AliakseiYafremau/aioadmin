@@ -1,11 +1,12 @@
-import asyncio
 from collections.abc import Awaitable
 from typing import Any, Callable
 from functools import wraps
 
 from sqlalchemy import select, delete, update, insert, MetaData, Table, Engine
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, AsyncEngine
+from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
+from sqlalchemy.exc import IntegrityError
 
+from aioadmin.exceptions import TargetAlreadyExistsError, ForeignKeyConstraintError
 from aioadmin.record import sqlalchemy_to_record, Record
 from aioadmin.adapter import Adapter
 
@@ -35,17 +36,26 @@ class SQLAlchemyAdapter(Adapter):
 
     @staticmethod
     async def _create(session: AsyncSession, data: dict[str, Any], table: Table):
-        return await session.execute(insert(table).values(**data).returning(table))
+        try:
+            return await session.execute(insert(table).values(**data).returning(table))
+        except IntegrityError:
+            raise TargetAlreadyExistsError("Target already exists")
 
     @staticmethod
     async def _delete(session: AsyncSession, pk_value: Any, table: Table):
         primary_key = table.primary_key.columns[0]
-        await session.execute(delete(table).where(primary_key == pk_value))
+        try:
+            await session.execute(delete(table).where(primary_key == pk_value))
+        except IntegrityError:
+            raise ForeignKeyConstraintError("Cannot delete: record is referenced by other records")
 
     @staticmethod
     async def _update(session: AsyncSession, pk_value: Any, data: dict[str, Any], table: Table):
         primary_key = table.primary_key.columns[0]
-        await session.execute(update(table).where(primary_key == pk_value).values(**data))
+        try:
+            await session.execute(update(table).where(primary_key == pk_value).values(**data))
+        except IntegrityError:
+            raise TargetAlreadyExistsError("Target already exists")
 
     def get_tables(self) -> dict[str, tuple[str, ...]]:
         return {
