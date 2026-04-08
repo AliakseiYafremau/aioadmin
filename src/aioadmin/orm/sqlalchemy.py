@@ -1,95 +1,75 @@
-from collections.abc import Awaitable
-from typing import Any, Callable
+from typing import Callable, Awaitable, Any
 from functools import wraps
 
-from sqlalchemy import select, delete, update, insert, MetaData, Table, Engine
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy import Engine, MetaData, Table
 
-from aioadmin.exceptions import TargetAlreadyExistsError, ForeignKeyConstraintError
-from aioadmin.record import sqlalchemy_to_record, Record
-from aioadmin.adapter import Adapter
+from aioadmin.domain.panel import Panel
+from aioadmin.domain.table_data import TableDataGateway, TableSchema
+from aioadmin.domain.row_data import Row
 
 
-class SQLAlchemyAdapter(Adapter):
-    def __init__(self, metadata: MetaData, engine: Engine):
-        self.metadata = metadata
-        self.engine = engine
-        self.session_factory = async_sessionmaker(engine)
+class SqlAlchemyTable(TableDataGateway):
+    def __init__(self, engine: Engine, table: Table):
+        self._engine: Engine = engine
+        self._table: Table = table
+        self._table_name: str = table.name
 
-    
     def _get_session(func: Callable[..., Awaitable[Any]]):
         @wraps(func)
         async def wrapper(self, *args, **kwargs):
-            async with self.session_factory() as session:
-                return await func(self, *args, session=session, **kwargs)
+            async with self._engine.connect() as session:
+                self.session = session
+                result = await func(self, *args, **kwargs)
+                del self.session
+                return result
         return wrapper
+
+    @property
+    def table_schema(self) -> TableSchema:
+        return TableSchema(
+            table_name=self._table_name,
+            columns=list(self._table.columns.keys())
+        )
     
-    @staticmethod
-    async def _list(session: AsyncSession, table: Table):
-        return await session.execute(select(table))
+    @_get_session
+    async def find(self, column: str, value: str) -> Row | None:
+        query = self._table.select().where(self._table.c[column] == value)
+        result = await self.session.execute(query)
+        row = result.fetchone()
+        if row is not None:
+            return Row(columns=self.table_schema.columns, values=row)
+        else:
+            return None
     
-    @staticmethod
-    async def _get(session: AsyncSession, pk_value: Any, table: Table):
-        primary_key = table.primary_key.columns[0]
-        return await session.execute(select(table).where(primary_key == pk_value))
-
-    @staticmethod
-    async def _create(session: AsyncSession, data: dict[str, Any], table: Table):
-        try:
-            return await session.execute(insert(table).values(**data).returning(table))
-        except IntegrityError:
-            raise TargetAlreadyExistsError("Target already exists")
-
-    @staticmethod
-    async def _delete(session: AsyncSession, pk_value: Any, table: Table):
-        primary_key = table.primary_key.columns[0]
-        try:
-            await session.execute(delete(table).where(primary_key == pk_value))
-        except IntegrityError:
-            raise ForeignKeyConstraintError("Cannot delete: record is referenced by other records")
-
-    @staticmethod
-    async def _update(session: AsyncSession, pk_value: Any, data: dict[str, Any], table: Table):
-        primary_key = table.primary_key.columns[0]
-        try:
-            await session.execute(update(table).where(primary_key == pk_value).values(**data))
-        except IntegrityError:
-            raise TargetAlreadyExistsError("Target already exists")
-
-    def get_tables(self) -> dict[str, tuple[str, ...]]:
-        return {
-            table.name: tuple(column.name for column in table.columns)
-            for table in self.metadata.tables.values()
-        }
+    @_get_session
+    async def find_all(self) -> list[Row]:
+        query = self._table.select()
+        result = await self.session.execute(query)
+        rows = result.fetchall()
+        return [Row(columns=self.table_schema.columns, values=row) for row in rows]
 
     @_get_session
-    async def get_table(self, table_name: str, *, session: AsyncSession) -> Record:
-        table = self.metadata.tables[table_name]
-        result = await self._list(session=session, table=table)
-        return sqlalchemy_to_record(table.name, result)
-
+    async def save(self, data: dict) -> None:
+        query = self._table.insert().values(**data)
+        await self.session.execute(query)
+        await self.session.commit()
+    
     @_get_session
-    async def get_record_detail(self, pk_value: Any, table_name: str, *, session: AsyncSession) -> Record:
-        table = self.metadata.tables[table_name]
-        result = await self._get(session=session, pk_value=pk_value, table=table)
-        return sqlalchemy_to_record(table.name, result)
+    async def delete(self, column: str, value: str) -> None:
+        query = self._table.delete().where(self._table.c[column] == value)
+        await self.session.execute(query)
+        await self.session.commit()
 
-    @_get_session
-    async def create_record(self, data: dict[str, Any], table_name: str, *, session: AsyncSession) -> Record:
-        table = self.metadata.tables[table_name]
-        result = await self._create(session=session, data=data, table=table)
-        await session.commit()
-        return sqlalchemy_to_record(table.name, result)
 
-    @_get_session
-    async def update_record(self, pk_value: Any, data: dict[str, Any], table_name: str, *, session: AsyncSession) -> Record:
-        table = self.metadata.tables[table_name]
-        await self._update(session=session, pk_value=pk_value, data=data, table=table)
-        await session.commit()
-
-    @_get_session
-    async def delete_record(self, pk_value: Any, table_name: str, *, session: AsyncSession) -> Record:
-        table = self.metadata.tables[table_name]
-        await self._delete(session=session, pk_value=pk_value, table=table)
-        await session.commit()
+class SqlAlchemyConnection:
+    def __init__(self, name: str, engine: Engine, metadata: MetaData):
+        self._engine: Engine = engine
+        self._metadata: MetaData = metadata
+        self.panel: Panel = Panel(
+            name=name,
+            tables=[
+                SqlAlchemyTable(engine=self._engine, table=table)
+                for table in self._metadata.tables.values()
+            ],
+        )
+    
