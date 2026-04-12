@@ -7,16 +7,19 @@ from aiogram_dialog.widgets.text import Const, Format
 from aiogram_dialog.widgets.kbd import SwitchTo
 from aiogram_dialog.widgets.input import MessageInput
 
-from aioadmin.adapter import Adapter
+from aioadmin.domain.panel import Panel
 from aioadmin.aiogram.handlers.states import Menu
-from aioadmin.exceptions import TargetAlreadyExistsError
+from aioadmin.domain.exceptions import TargetAlreadyExistsError
+from aioadmin.domain.table_data import TableDataGateway
 
 
 async def start_create(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager):
-    adapter = dialog_manager.middleware_data["adapter"]
-    current_table = dialog_manager.dialog_data["current_table"]
-    tables = adapter.get_tables()
-    columns = list(tables[current_table])
+    panel: Panel = dialog_manager.middleware_data["panel"]
+    current_table_name: str = dialog_manager.dialog_data["current_table"]
+    tables_gateways: dict[str, TableDataGateway] = panel.tables
+    table = tables_gateways[current_table_name]
+    table_schema = table.table_schema
+    columns = table_schema.columns
     
     dialog_manager.dialog_data["create_columns"] = columns
     dialog_manager.dialog_data["create_current_index"] = 0
@@ -40,10 +43,11 @@ async def process_field_input(message: Message, widget: Any, dialog_manager: Dia
         dialog_manager.dialog_data["create_current_index"] = next_index
         
         if next_index >= len(columns):
-            adapter = dialog_manager.middleware_data["adapter"]
-            current_table = dialog_manager.dialog_data["current_table"]
+            panel: Panel = dialog_manager.middleware_data["panel"]
+            current_table_name = dialog_manager.dialog_data["current_table"]
+            table = panel.tables[current_table_name]
             try:
-                await adapter.create_record(create_data, current_table)
+                await table.save(create_data)
             except TargetAlreadyExistsError:
                 await message.answer("Record already exists")
                 await dialog_manager.switch_to(Menu.create_record)
@@ -55,7 +59,7 @@ async def process_field_input(message: Message, widget: Any, dialog_manager: Dia
         else:
             await dialog_manager.switch_to(Menu.create_record)
 
-async def get_create_record(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
+async def get_create_record(panel: Panel, dialog_manager: DialogManager, **kwargs):
     current_index = dialog_manager.dialog_data.get("create_current_index", 0)
     columns = dialog_manager.dialog_data.get("create_columns", [])
     

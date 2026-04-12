@@ -11,4 +11,4 @@ class Row:
         return self.columns == value.columns and self.values == value.values
 
     def __iter__(self) -> Iterable[Sequence[object]]:
-        return iter(self.rows)
+        return iter(self.values)

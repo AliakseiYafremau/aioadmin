@@ -7,9 +7,9 @@ from aiogram_dialog.widgets.text import Const, Format
 from aiogram_dialog.widgets.kbd import Select, SwitchTo, Group
 from aiogram_dialog.widgets.input import MessageInput
 
-from aioadmin.adapter import Adapter
+from aioadmin.domain.panel import Panel
 from aioadmin.aiogram.handlers.states import Menu
-from aioadmin.exceptions import TargetAlreadyExistsError
+from aioadmin.domain.exceptions import TargetAlreadyExistsError
 
 
 async def start_update(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager):
@@ -18,9 +18,9 @@ async def start_update(callback: CallbackQuery, widget: Any, dialog_manager: Dia
 async def select_record_to_update(callback: CallbackQuery, widget: Any, dialog_manager: DialogManager, item_id: str):
     dialog_manager.dialog_data["update_record_pk"] = item_id
     
-    adapter = dialog_manager.middleware_data["adapter"]
+    panel: Panel = dialog_manager.middleware_data["panel"]
     current_table = dialog_manager.dialog_data["current_table"]
-    tables = adapter.get_tables()
+    tables = panel.tables()
     columns = list(tables[current_table])
     
     dialog_manager.dialog_data["update_columns"] = columns
@@ -55,9 +55,9 @@ async def process_update_field_input(message: Message, widget: Any, dialog_manag
     
     await dialog_manager.switch_to(Menu.get_table)
 
-async def get_update_records(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
+async def get_update_records(panel: Panel, dialog_manager: DialogManager, **kwargs):
     current_table = dialog_manager.dialog_data["current_table"]
-    record = await adapter.get_table(current_table)
+    record = panel.tables[current_table]
     
     records_data = []
     for idx, row in enumerate(record.rows):
@@ -75,7 +75,7 @@ async def get_update_records(adapter: Adapter, dialog_manager: DialogManager, **
         "records": records_data,
     }
 
-async def get_update_columns(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
+async def get_update_columns(panel: Panel, dialog_manager: DialogManager, **kwargs):
     columns = dialog_manager.dialog_data.get("update_columns", [])
     
     columns_data = []
@@ -89,10 +89,10 @@ async def get_update_columns(adapter: Adapter, dialog_manager: DialogManager, **
         "columns": columns_data,
     }
 
-async def get_update_field_value(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
+async def get_update_field_value(panel: Panel, dialog_manager: DialogManager, **kwargs):
     column_name = dialog_manager.dialog_data.get("update_column", "")
     
-    adapter_instance = dialog_manager.middleware_data["adapter"]
+    panel_instance = dialog_manager.middleware_data["panel"]
     current_table = dialog_manager.dialog_data["current_table"]
     record_pk_str = dialog_manager.dialog_data.get("update_record_pk", "")
     
@@ -101,7 +101,7 @@ async def get_update_field_value(adapter: Adapter, dialog_manager: DialogManager
     except ValueError:
         pk_value = record_pk_str
     
-    record = await adapter_instance.get_record_detail(pk_value, current_table)
+    record = await panel_instance.get_record_detail(pk_value, current_table)
     current_value = str(record.rows[0][record.columns.index(column_name)]) if record.rows else ""
     
     return {

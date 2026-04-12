@@ -6,10 +6,10 @@ from aiogram_dialog import Window, Dialog, DialogManager
 from aiogram_dialog.widgets.text import Const, Format
 from aiogram_dialog.widgets.kbd import Select, SwitchTo, Button
 
-from aioadmin.adapter import Adapter
+from aioadmin.domain.panel import Panel
 from aioadmin.aiogram.handlers.states import Menu
 from aioadmin.aiogram.handlers.create import start_create, create_window
-from aioadmin.aiogram.handlers.update import start_update, update_select_record_window, update_select_column_window, update_field_value_window
+# from aioadmin.aiogram.handlers.update import start_update, update_select_record_window, update_select_column_window, update_field_value_window
 from aioadmin.aiogram.handlers.delete import start_delete, delete_window
 
 
@@ -17,18 +17,20 @@ async def set_current_table(callback: CallbackQuery, widget: Any, dialog_manager
     dialog_manager.dialog_data["current_table"] = item_id
     await dialog_manager.switch_to(Menu.get_table)
 
-async def get_tables(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
-    return { "tables": adapter.get_tables().keys() }
+async def get_tables(panel: Panel, dialog_manager: DialogManager, **kwargs):
+    return { "tables": panel.tables.keys() }
 
-async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
-    current_table = dialog_manager.dialog_data["current_table"]
-    record = await adapter.get_table(current_table)
+async def get_table(panel: Panel, dialog_manager: DialogManager, **kwargs):
+    current_table_name: str = dialog_manager.dialog_data["current_table"]
+    table = panel.tables[current_table_name]
+    table_schema = table.table_schema
 
-    columns = [str(column) for column in record.columns]
+    columns = table_schema.columns
     column_widths = [len(column) for column in columns]
     rendered_rows = []
 
-    for row in record.rows:
+    rows = await table.find_all()
+    for row in rows:
         rendered_row = [str(value) for value in row]
         for idx, value in enumerate(rendered_row):
             column_widths[idx] = max(column_widths[idx], len(value))
@@ -46,7 +48,7 @@ async def get_table(adapter: Adapter, dialog_manager: DialogManager, **kwargs):
     rendered_table = "```table\n" + "\n".join(table_lines) + "\n```" if table_lines else ""
 
     return {
-        "name": record.name.capitalize(),
+        "name": table_schema.table_name.capitalize(),
         "table": rendered_table,
     }
 
@@ -63,7 +65,7 @@ menu_dialog = Dialog(
         Format('*{name}*'),
         Format("{table}"),
         Button(Const("Create"), id="create", on_click=start_create),
-        Button(Const("Update"), id="update", on_click=start_update),
+        # Button(Const("Update"), id="update", on_click=start_update),
         Button(Const("Delete"), id="delete", on_click=start_delete),
         SwitchTo(Const("Return to menu"), id="table", state=Menu.get_tables),
         getter=get_table,
@@ -72,7 +74,7 @@ menu_dialog = Dialog(
     ),
     create_window,
     delete_window,
-    update_select_record_window,
-    update_select_column_window,
-    update_field_value_window,
+    # update_select_record_window,
+    # update_select_column_window,
+    # update_field_value_window,
 )

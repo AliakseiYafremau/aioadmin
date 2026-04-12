@@ -13,3 +13,7 @@ uv.lock
 
 # Databases
 *.db
+
+# IDEs
+.vscode/
+.idea/

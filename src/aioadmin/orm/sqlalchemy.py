@@ -2,7 +2,9 @@ from typing import Callable, Awaitable, Any
 from functools import wraps
 
 from sqlalchemy import Engine, MetaData, Table
+from sqlalchemy.exc import IntegrityError
 
+from aioadmin.domain.exceptions import ForeignKeyConstraintError, TargetAlreadyExistsError
 from aioadmin.domain.panel import Panel
 from aioadmin.domain.table_data import TableDataGateway, TableSchema
 from aioadmin.domain.row_data import Row
@@ -51,13 +53,19 @@ class SqlAlchemyTable(TableDataGateway):
     @_get_session
     async def save(self, data: dict) -> None:
         query = self._table.insert().values(**data)
-        await self.session.execute(query)
+        try:
+            await self.session.execute(query)
+        except IntegrityError:
+            raise TargetAlreadyExistsError("Record already exists")
         await self.session.commit()
     
     @_get_session
     async def delete(self, column: str, value: str) -> None:
         query = self._table.delete().where(self._table.c[column] == value)
-        await self.session.execute(query)
+        try:
+            await self.session.execute(query)
+        except IntegrityError:
+            raise ForeignKeyConstraintError("Cannot delete record due to foreign key constraint")
         await self.session.commit()
 
 
