@@ -1,5 +1,4 @@
 from aiogram import Router
-from aiogram_dialog import setup_dialogs
 
 from aioadmin.orm.sqlalchemy import SqlAlchemyConnection
 from aioadmin.aiogram.middleware import ConnectionMiddleware
@@ -15,4 +14,3 @@ class AdminRouter(Router):
         self.include_routers(
             menu_dialog,
         )
-        setup_dialogs(self)
